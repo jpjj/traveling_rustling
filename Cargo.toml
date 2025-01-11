@@ -1,0 +1,20 @@
+[package]
+name = "traveling_rustling"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "traveling_rustling"
+crate-type = ["cdylib"]
+
+[dependencies]
+chrono = "0.4.39"
+rand = "0.8.5"
+
+[dependencies.pyo3]
+version = "0.23.3"
+
+[features]
+extension-module = ["pyo3/extension-module"]
+default = ["extension-module"]
