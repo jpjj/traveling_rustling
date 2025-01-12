@@ -1,18 +1,22 @@
 // mod time_windows;
 mod solver;
-mod distance_matrix;
-mod route;
+
+mod input;
 mod local_moves;
-use distance_matrix::DistanceMatrix;
+mod output;
+mod penalizer;
+mod penalties;
+mod route;
 use pyo3::prelude::*;
 
+use penalties::distance::DistanceMatrix;
 use solver::Solver;
-
 /// Formats the sum of two numbers as string.
 #[pyfunction]
 fn solve(distance_matrix: Vec<Vec<u64>>) -> PyResult<Vec<usize>> {
     let real_distance_matrix = DistanceMatrix::new(distance_matrix);
-    let mut solver = Solver::new(real_distance_matrix, None);
+    let input = input::Input::new(real_distance_matrix, None, None, None);
+    let mut solver = Solver::new(input);
     solver.solve();
 
     Ok(solver.get_best_sequence())

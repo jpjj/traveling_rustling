@@ -1,35 +1,35 @@
 use crate::route::Route;
 /// for all moves it holdds that 0 <= i < j < n.
-pub fn two_opt(route: &mut Route, i: usize, j: usize){
-    route.sequence[i..j+1].reverse();
+pub fn two_opt(route: &mut Route, i: usize, j: usize) {
+    route.sequence[i..j + 1].reverse();
 }
 
-pub fn swap(route: &mut Route, i: usize, j: usize){
+pub fn swap(route: &mut Route, i: usize, j: usize) {
     route.sequence.swap(i, j);
 }
 
-pub fn one_shift_left(route: &mut Route, i: usize, j: usize){
-    route.sequence[i..j+1].rotate_left(1);
+pub fn one_shift_left(route: &mut Route, i: usize, j: usize) {
+    route.sequence[i..j + 1].rotate_left(1);
 }
 
-pub fn two_shift_left(route: &mut Route, i: usize, j: usize){
-    route.sequence[i..j+1].rotate_left(2);
+pub fn two_shift_left(route: &mut Route, i: usize, j: usize) {
+    route.sequence[i..j + 1].rotate_left(2);
 }
 
-pub fn three_shift_left(route: &mut Route, i: usize, j: usize){
-    route.sequence[i..j+1].rotate_left(3);
+pub fn three_shift_left(route: &mut Route, i: usize, j: usize) {
+    route.sequence[i..j + 1].rotate_left(3);
 }
 
-pub fn one_shift_right(route: &mut Route, i: usize, j: usize){
-    route.sequence[i..j+1].rotate_right(1);
+pub fn one_shift_right(route: &mut Route, i: usize, j: usize) {
+    route.sequence[i..j + 1].rotate_right(1);
 }
 
-pub fn two_shift_right(route: &mut Route, i: usize, j: usize){
-    route.sequence[i..j+1].rotate_right(2);
+pub fn two_shift_right(route: &mut Route, i: usize, j: usize) {
+    route.sequence[i..j + 1].rotate_right(2);
 }
 
-pub fn three_shift_right(route: &mut Route, i: usize, j: usize){
-    route.sequence[i..j+1].rotate_right(3);
+pub fn three_shift_right(route: &mut Route, i: usize, j: usize) {
+    route.sequence[i..j + 1].rotate_right(3);
 }
 
 #[cfg(test)]
