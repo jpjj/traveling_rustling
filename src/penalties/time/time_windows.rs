@@ -42,15 +42,13 @@ impl TimeWindow {
 /// A collection of time windows.
 /// Time windows are stored in chronological order and do not overlap.
 pub struct TimeWindows {
-    windows: Vec<TimeWindow>,
+    pub windows: Vec<TimeWindow>,
 }
 
 impl TimeWindows {
     /// Creates a new empty collection of time windows.
-    pub fn new() -> TimeWindows {
-        TimeWindows {
-            windows: Vec::new(),
-        }
+    pub fn new(windows: Vec<TimeWindow>) -> TimeWindows {
+        TimeWindows { windows: windows }
     }
 
     /// Adds a new time window to the collection.
@@ -175,7 +173,7 @@ mod tests {
 
     #[test]
     fn test_time_windows() {
-        let mut time_windows = TimeWindows::new();
+        let mut time_windows = TimeWindows::new(vec![]);
         let start1 = Utc.with_ymd_and_hms(2021, 1, 1, 1, 0, 0).unwrap();
         let end1 = Utc.with_ymd_and_hms(2021, 1, 1, 2, 0, 0).unwrap();
         let time_window1 = TimeWindow::new(start1, end1);

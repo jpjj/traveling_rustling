@@ -32,6 +32,8 @@ impl OperationTimes {
                 return self.daily_start.signed_duration_since(time);
             }
             chrono::Duration::days(1) + self.daily_start.signed_duration_since(time)
+        } else if time == self.daily_end {
+            chrono::Duration::days(1) + self.daily_start.signed_duration_since(time)
         } else {
             chrono::Duration::zero()
         }
@@ -41,7 +43,7 @@ impl OperationTimes {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::NaiveTime;
+    use chrono::{NaiveTime, TimeZone, Utc};
 
     #[test]
     fn test_operation_times() {
@@ -71,11 +73,23 @@ mod tests {
         );
         assert_eq!(
             operation_times.waiting_time(NaiveTime::from_hms_opt(16, 0, 0).unwrap()),
-            chrono::Duration::zero()
+            chrono::Duration::hours(16)
         );
         assert_eq!(
             operation_times.waiting_time(NaiveTime::from_hms_opt(17, 0, 0).unwrap()),
             chrono::Duration::hours(15)
         );
+    }
+
+    #[test]
+    fn test_operation_times_against_utc() {
+        let operation_times = OperationTimes::new(
+            NaiveTime::from_hms_opt(8, 0, 0).unwrap(),
+            NaiveTime::from_hms_opt(16, 0, 0).unwrap(),
+        );
+        let utc_datetime = Utc.with_ymd_and_hms(2021, 1, 1, 8, 0, 0).unwrap();
+        assert!(operation_times.contains(utc_datetime.time()));
+        let utc_datetime = Utc.with_ymd_and_hms(2021, 1, 1, 7, 0, 0).unwrap();
+        assert!(!operation_times.contains(utc_datetime.time()));
     }
 }
