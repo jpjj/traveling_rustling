@@ -85,7 +85,7 @@ solution = traveling_rustling.solve(
     working_times,
     time_windows,
     operation_times,
-    5,
+    1,
 )
 toc = tme.time()
 print(f"Time to solve: {toc - tic:.2f} seconds")
