@@ -12,6 +12,9 @@ crate-type = ["cdylib"]
 chrono = "0.4.39"
 rand = "0.8.5"
 
+[dev-dependencies]
+criterion = "0.3"
+
 [dependencies.pyo3]
 version = "0.23.3"
 
@@ -21,3 +24,11 @@ default = ["extension-module"]
 
 [profile.release]
 debug = 1
+
+[[bench]]
+name = "benchmark_u64_vs_chrono"
+harness = false
+
+[[bench]]
+name = "benchmark_next_window"
+harness = false
