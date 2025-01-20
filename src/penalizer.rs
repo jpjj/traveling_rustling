@@ -1,7 +1,7 @@
 use crate::{
     output::Solution,
     penalties::{
-        distance::DistanceMatrix,
+        distance::{DistanceMatrix, DistancePenalizer},
         time::{
             time_input::TimeInput,
             time_output::{action_report, TimeReport},
@@ -11,20 +11,20 @@ use crate::{
 };
 
 pub struct Penalizer {
-    pub distance_matrix: DistanceMatrix,
+    pub distance_penalizer: DistancePenalizer,
     pub time_input: Option<TimeInput>,
 }
 
 impl Penalizer {
-    pub fn new(distance_matrix: DistanceMatrix, time_input: Option<TimeInput>) -> Penalizer {
+    pub fn new(distance_penalizer: DistancePenalizer, time_input: Option<TimeInput>) -> Penalizer {
         Penalizer {
-            distance_matrix,
+            distance_penalizer,
             time_input,
         }
     }
 
     pub fn penalize(&self, route: Route, build_schedule: bool) -> Solution {
-        let distance = self.distance(&route);
+        let distance = self.distance_penalizer.penalize(&route);
         let time_report = self.time(&route, build_schedule);
         Solution {
             route,
@@ -66,17 +66,6 @@ impl Penalizer {
                 sol1.distance < sol2.distance
             }
         }
-    }
-
-    pub fn distance(&self, route: &Route) -> u64 {
-        let mut distance = 0;
-        for i in 0..route.len() - 1 {
-            distance += self.distance_matrix.distance(route[i], route[i + 1]);
-        }
-        distance
-            + self
-                .distance_matrix
-                .distance(route[route.len() - 1], route[0])
     }
 
     pub fn time(&self, route: &Route, build_schedule: bool) -> Option<TimeReport> {
@@ -143,10 +132,13 @@ impl Penalizer {
 mod tests {
 
     use super::*;
-    use crate::penalties::time::{
-        operation_times::OperationTimes,
-        time_output::Event,
-        time_windows::{TimeWindow, TimeWindows},
+    use crate::penalties::{
+        distance,
+        time::{
+            operation_times::OperationTimes,
+            time_output::Event,
+            time_windows::{TimeWindow, TimeWindows},
+        },
     };
     use chrono::{NaiveTime, TimeZone, Utc};
 
@@ -213,7 +205,8 @@ mod tests {
             travel_duration_until_break: None,
             break_duration: None,
         });
-        let penalizer = Penalizer::new(distance_matrix, time_input);
+        let distance_penalizer = DistancePenalizer::new(distance_matrix);
+        let penalizer = Penalizer::new(distance_penalizer, time_input);
         let route = Route::new(vec![0, 1, 2]);
         let solution = penalizer.penalize(route, true);
         assert_eq!(solution.distance, 6);
@@ -373,7 +366,8 @@ mod tests {
             travel_duration_until_break: None,
             break_duration: None,
         });
-        let penalizer = Penalizer::new(distance_matrix, time_input);
+        let distance_penalizer = DistancePenalizer::new(distance_matrix);
+        let penalizer = Penalizer::new(distance_penalizer, time_input);
         let route1 = Route::new(vec![0, 1, 2]);
         let route2 = Route::new(vec![2, 1, 0]);
         let solution1 = penalizer.penalize(route1, true);

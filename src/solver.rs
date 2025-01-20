@@ -8,6 +8,7 @@ use crate::{
     },
     output::Solution,
     penalizer::Penalizer,
+    penalties::distance::DistancePenalizer,
     route::Route,
 };
 
@@ -30,7 +31,8 @@ impl Solver {
         let n = input.distance_matrix.len();
         let distance_matrix = input.distance_matrix;
         let time_limit = input.time_limit;
-        let penalizer: Penalizer = Penalizer::new(distance_matrix, input.time_input);
+        let distance_penalizer = DistancePenalizer::new(distance_matrix);
+        let penalizer: Penalizer = Penalizer::new(distance_penalizer, input.time_input);
         let route = match input.init_route {
             Some(route) => route,
             None => Route::new((0..n).collect()),
