@@ -156,7 +156,7 @@ mod tests {
             distance::DistanceMatrix,
             time::{
                 operation_times::OperationTimes,
-                time_input::TimeScheduler,
+                time_input::TimeInput,
                 time_windows::{TimeWindow, TimeWindows},
             },
         },
@@ -192,7 +192,7 @@ mod tests {
     fn test_solver_time_input() {
         let distance_matrix =
             DistanceMatrix::new(vec![vec![0, 1, 2], vec![1, 0, 3], vec![2, 3, 0]]);
-        let time_input = Some(TimeScheduler {
+        let time_input = Some(TimeInput {
             job_durations: vec![chrono::Duration::hours(3); 3],
             time_windows: vec![
                 TimeWindows::new(vec![
@@ -241,6 +241,9 @@ mod tests {
                     chrono::Duration::hours(0),
                 ],
             ],
+            working_days: None,
+            travel_duration_until_break: None,
+            break_duration: None,
         });
         let input = Input::new(distance_matrix, time_input, None, None);
         let mut solver = Solver::new(input);
@@ -261,6 +264,10 @@ mod tests {
             job_durations,
             time_windows,
             operation_times,
+            None,
+            None,
+            None,
+            None,
             None,
         );
         let mut solver = Solver::new(input);

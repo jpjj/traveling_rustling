@@ -3,7 +3,7 @@ use crate::{
     penalties::{
         distance::DistanceMatrix,
         time::{
-            time_input::TimeScheduler,
+            time_input::TimeInput,
             time_output::{action_report, TimeReport},
         },
     },
@@ -12,11 +12,11 @@ use crate::{
 
 pub struct Penalizer {
     pub distance_matrix: DistanceMatrix,
-    pub time_input: Option<TimeScheduler>,
+    pub time_input: Option<TimeInput>,
 }
 
 impl Penalizer {
-    pub fn new(distance_matrix: DistanceMatrix, time_input: Option<TimeScheduler>) -> Penalizer {
+    pub fn new(distance_matrix: DistanceMatrix, time_input: Option<TimeInput>) -> Penalizer {
         Penalizer {
             distance_matrix,
             time_input,
@@ -154,7 +154,7 @@ mod tests {
     fn test_penalizer() {
         let distance_matrix =
             DistanceMatrix::new(vec![vec![0, 1, 2], vec![1, 0, 3], vec![2, 3, 0]]);
-        let time_input = Some(TimeScheduler {
+        let time_input = Some(TimeInput {
             job_durations: vec![chrono::Duration::hours(3); 3],
             time_windows: vec![
                 TimeWindows::new(vec![
@@ -209,6 +209,9 @@ mod tests {
                     chrono::Duration::hours(0),
                 ],
             ],
+            working_days: None,
+            travel_duration_until_break: None,
+            break_duration: None,
         });
         let penalizer = Penalizer::new(distance_matrix, time_input);
         let route = Route::new(vec![0, 1, 2]);
@@ -317,7 +320,7 @@ mod tests {
     fn test_is_better() {
         let distance_matrix =
             DistanceMatrix::new(vec![vec![0, 1, 2], vec![1, 0, 3], vec![2, 3, 0]]);
-        let time_input = Some(TimeScheduler {
+        let time_input = Some(TimeInput {
             job_durations: vec![chrono::Duration::hours(3); 3],
             time_windows: vec![
                 TimeWindows::new(vec![
@@ -366,6 +369,9 @@ mod tests {
                     chrono::Duration::hours(0),
                 ],
             ],
+            working_days: None,
+            travel_duration_until_break: None,
+            break_duration: None,
         });
         let penalizer = Penalizer::new(distance_matrix, time_input);
         let route1 = Route::new(vec![0, 1, 2]);

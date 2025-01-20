@@ -137,7 +137,11 @@ fn main() {
         job_durations,
         time_windows,
         operation_times,
+        None,
+        None,
+        None,
         time_limit,
+        None,
     );
     let mut solver = Solver::new(input);
     solver.solve();

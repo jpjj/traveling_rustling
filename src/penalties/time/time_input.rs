@@ -4,16 +4,19 @@ use super::{
 };
 /// input for time window constraints
 
-pub struct TimeScheduler {
+pub struct TimeInput {
     pub duration_matrix: Vec<Vec<chrono::Duration>>,
     pub job_durations: Vec<chrono::Duration>,
     pub time_windows: Vec<TimeWindows>,
     pub operation_times: Option<OperationTimes>,
+    pub working_days: Option<Vec<bool>>,
+    pub travel_duration_until_break: Option<u64>,
+    pub break_duration: Option<u64>,
 }
 
-impl TimeScheduler {
-    // pub fn new(duration_matrix: Vec<Vec<chrono::Duration>>, job_durations: Vec<chrono::Duration>, time_windows: Vec<TimeWindows>, operation_times: OperationTimes) -> TimeScheduler{
-    //     TimeScheduler{
+impl TimeInput {
+    // pub fn new(duration_matrix: Vec<Vec<chrono::Duration>>, job_durations: Vec<chrono::Duration>, time_windows: Vec<TimeWindows>, operation_times: OperationTimes) -> TimeInput{
+    //     TimeInput{
     //         duration_matrix,
     //         job_durations,
     //         time_windows,
@@ -31,7 +34,10 @@ pub fn transform(
     job_durations: Option<Vec<u64>>,
     time_windows: Option<Vec<Vec<(u64, u64)>>>,
     operation_times: Option<(u64, u64)>,
-) -> Option<TimeScheduler> {
+    working_days: Option<Vec<bool>>,
+    travel_duration_until_break: Option<u64>,
+    break_duration: Option<u64>,
+) -> Option<TimeInput> {
     let duration_matrix = match duration_matrix {
         Some(matrix) => Some(
             matrix
@@ -100,11 +106,14 @@ pub fn transform(
         operation_times,
     ) {
         (Some(duration_matrix), Some(job_durations), Some(time_windows), operation_times) => {
-            Some(TimeScheduler {
+            Some(TimeInput {
                 duration_matrix,
                 job_durations,
                 time_windows,
                 operation_times,
+                working_days,
+                travel_duration_until_break,
+                break_duration,
             })
         }
         _ => None,
@@ -126,6 +135,9 @@ mod tests {
                 vec![(9, 10), (11, 12)],
             ]),
             Some((8, 16)),
+            None,
+            None,
+            None,
         );
         assert!(time_input.is_some());
         let time_input = time_input.unwrap();
