@@ -1,25 +1,25 @@
 use crate::{
     output::Solution,
     penalties::{
-        distance::{DistanceMatrix, DistancePenalizer},
-        time::{
-            time_input::TimeInput,
-            time_output::{action_report, TimeReport},
-        },
+        distance::DistancePenalizer,
+        time::{time_input::TimeInput, time_output::TimeOutput, TimePenalizer},
     },
     route::Route,
 };
 
 pub struct Penalizer {
     pub distance_penalizer: DistancePenalizer,
-    pub time_input: Option<TimeInput>,
+    pub time_penalizer: Option<TimePenalizer>,
 }
 
 impl Penalizer {
-    pub fn new(distance_penalizer: DistancePenalizer, time_input: Option<TimeInput>) -> Penalizer {
+    pub fn new(
+        distance_penalizer: DistancePenalizer,
+        time_penalizer: Option<TimePenalizer>,
+    ) -> Penalizer {
         Penalizer {
             distance_penalizer,
-            time_input,
+            time_penalizer,
         }
     }
 
@@ -34,7 +34,7 @@ impl Penalizer {
     }
 
     pub fn is_better(&self, sol1: &Solution, sol2: &Solution) -> bool {
-        match &self.time_input {
+        match &self.time_penalizer {
             None => sol1.distance < sol2.distance,
             Some(_) => {
                 let time_report1 = sol1.time_report.as_ref().unwrap();
@@ -68,62 +68,10 @@ impl Penalizer {
         }
     }
 
-    pub fn time(&self, route: &Route, build_schedule: bool) -> Option<TimeReport> {
-        match &self.time_input {
+    pub fn time(&self, route: &Route, build_schedule: bool) -> Option<TimeOutput> {
+        match &self.time_penalizer {
             None => None,
-            Some(time_input) => {
-                // Here comes the functionalities of the time penalizer
-                // We go through the route one location after the other
-                // we fist assume that we are at current location.
-                // then we call a cycle function that will calculate
-                // a subsequence of waiting and working or waiting and moving
-                // until either the job duration is over or the traveling time is over
-                // all inside the operation times.
-
-                // we start at the first opening time of the first location
-                let mut start_time = time_input.time_windows[route.sequence[0]][0].start;
-                let mut time_report = TimeReport::new(
-                    start_time,
-                    start_time,
-                    chrono::Duration::zero(),
-                    chrono::Duration::zero(),
-                    chrono::Duration::zero(),
-                    chrono::Duration::zero(),
-                    chrono::Duration::zero(),
-                    vec![],
-                );
-                let operation_times = time_input.operation_times.as_ref();
-                for (i, &location) in route.sequence.iter().enumerate() {
-                    start_time = time_report.end_time;
-                    let job_duration = time_input.job_durations[location];
-                    let job_time_windows = &time_input.time_windows[location];
-
-                    time_report.extend(action_report(
-                        job_duration,
-                        Some(job_time_windows),
-                        operation_times,
-                        start_time,
-                        false,
-                        Some(location),
-                        build_schedule,
-                    ));
-                    let next_i = (i + 1) % route.sequence.len();
-                    let travel_duration =
-                        time_input.travel_time(route.sequence[i], route.sequence[next_i]);
-                    start_time = time_report.end_time;
-
-                    time_report.extend(action_report(
-                        travel_duration,
-                        None,
-                        operation_times,
-                        start_time,
-                        true,
-                        None,
-                        build_schedule,
-                    ));
-                }
-                Some(time_report)
-            }
+            Some(time_penalizer) => Some(time_penalizer.penalize(&route, build_schedule)),
         }
     }
 }
@@ -131,9 +79,11 @@ impl Penalizer {
 #[cfg(test)]
 mod tests {
 
+    use core::time;
+
     use super::*;
     use crate::penalties::{
-        distance,
+        distance::{self, DistanceMatrix},
         time::{
             operation_times::OperationTimes,
             time_output::Event,
@@ -206,7 +156,8 @@ mod tests {
             break_duration: None,
         });
         let distance_penalizer = DistancePenalizer::new(distance_matrix);
-        let penalizer = Penalizer::new(distance_penalizer, time_input);
+        let time_penalizer = TimePenalizer::new(time_input.unwrap());
+        let penalizer = Penalizer::new(distance_penalizer, Some(time_penalizer));
         let route = Route::new(vec![0, 1, 2]);
         let solution = penalizer.penalize(route, true);
         assert_eq!(solution.distance, 6);
@@ -367,7 +318,8 @@ mod tests {
             break_duration: None,
         });
         let distance_penalizer = DistancePenalizer::new(distance_matrix);
-        let penalizer = Penalizer::new(distance_penalizer, time_input);
+        let time_penalizer = TimePenalizer::new(time_input.unwrap());
+        let penalizer = Penalizer::new(distance_penalizer, Some(time_penalizer));
         let route1 = Route::new(vec![0, 1, 2]);
         let route2 = Route::new(vec![2, 1, 0]);
         let solution1 = penalizer.penalize(route1, true);

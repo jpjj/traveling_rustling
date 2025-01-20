@@ -8,7 +8,7 @@ use super::{
 /// Time report module for outputs and evaluation of the time schedule.
 
 #[derive(Debug, Clone)]
-pub struct TimeReport {
+pub struct TimeOutput {
     pub start_time: chrono::DateTime<chrono::Utc>,
     pub end_time: chrono::DateTime<chrono::Utc>,
     pub duration: chrono::Duration,
@@ -19,30 +19,21 @@ pub struct TimeReport {
     pub schedule: Vec<Event>,
 }
 
-impl TimeReport {
-    pub fn new(
-        start_time: chrono::DateTime<chrono::Utc>,
-        end_time: chrono::DateTime<chrono::Utc>,
-        duration: chrono::Duration,
-        lateness: chrono::Duration,
-        working_time: chrono::Duration,
-        waiting_time: chrono::Duration,
-        traveling_time: chrono::Duration,
-        schedule: Vec<Event>,
-    ) -> TimeReport {
-        TimeReport {
+impl TimeOutput {
+    pub fn new(start_time: chrono::DateTime<chrono::Utc>) -> TimeOutput {
+        TimeOutput {
             start_time,
-            end_time,
-            duration,
-            lateness,
-            working_time,
-            waiting_time,
-            traveling_time,
-            schedule,
+            end_time: start_time,
+            duration: chrono::Duration::zero(),
+            lateness: chrono::Duration::zero(),
+            working_time: chrono::Duration::zero(),
+            waiting_time: chrono::Duration::zero(),
+            traveling_time: chrono::Duration::zero(),
+            schedule: vec![],
         }
     }
 
-    pub fn extend(&mut self, other: TimeReport) {
+    pub fn extend(&mut self, other: TimeOutput) {
         self.end_time = other.end_time;
         self.duration += other.duration;
         self.lateness += other.lateness;
@@ -68,7 +59,7 @@ pub fn action_report(
     is_travel: bool,
     location_id: Option<usize>,
     build_schedule: bool,
-) -> TimeReport {
+) -> TimeOutput {
     let mut schedule: Vec<Event> = Vec::new();
     let mut job_duration_left = job_duration;
     let mut current_time = start_time;
@@ -172,7 +163,7 @@ pub fn action_report(
             job_duration_left -= work_time;
         }
     }
-    TimeReport::new(
+    TimeOutput::new(
         start_time,
         current_time,
         current_time - start_time,

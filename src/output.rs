@@ -1,4 +1,4 @@
-use crate::{penalties::time::time_output::TimeReport, route::Route};
+use crate::{penalties::time::time_output::TimeOutput, route::Route};
 
 pub struct Output {
     pub solution: Solution,
@@ -10,5 +10,5 @@ pub struct Output {
 pub struct Solution {
     pub route: Route,
     pub distance: u64,
-    pub time_report: Option<TimeReport>,
+    pub time_report: Option<TimeOutput>,
 }
