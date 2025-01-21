@@ -1,5 +1,6 @@
 use chrono;
 use chrono::{DateTime, Utc};
+use std::cmp::{max, min};
 use std::ops::Index;
 /// A time window with a start and end time.
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -22,16 +23,6 @@ impl TimeWindow {
 
     pub fn duration(&self) -> chrono::Duration {
         self.end.signed_duration_since(self.start)
-    }
-
-    pub fn waiting_time(&self, time: DateTime<Utc>) -> chrono::Duration {
-        if time < self.start {
-            self.start.signed_duration_since(time)
-        } else if time > self.end {
-            chrono::Duration::zero()
-        } else {
-            chrono::Duration::zero()
-        }
     }
 
     fn lateness(&self, time: DateTime<Utc>) -> chrono::Duration {
@@ -72,43 +63,63 @@ impl TimeWindows {
         self.windows.len()
     }
 
-    pub fn next_window(&self, time: DateTime<Utc>) -> Option<(&TimeWindow, chrono::Duration)> {
-        // Find the time window that contains the given time and the waiting time
-        // If it does not exist, find the time window starting after the given time
-        // returns None if time is after the last time window
-        // binary search for time on the slice of start times
-        if self.windows.is_empty() {
-            return None;
-        }
-        if self.windows.last().unwrap().lateness(time) > chrono::Duration::zero() {
-            return None;
-        }
-        // hence, there must be a time window that contains the time
-        match self
-            .windows
-            .binary_search_by(|window| window.start.cmp(&time))
-        {
-            Ok(index) => Some((&self.windows[index], chrono::Duration::zero())),
-            Err(index) => {
-                if index == 0 {
-                    return Some((&self.windows[0], self.windows[0].waiting_time(time)));
-                }
-                if self.windows[index - 1].contains(time) {
-                    return Some((&self.windows[index - 1], chrono::Duration::zero()));
-                }
-                let waiting_time = self.windows[index].waiting_time(time);
-                Some((&self.windows[index], waiting_time))
-            }
-        }
-    }
-
     pub fn find_next_fitting_time(
         &self,
         current_time: DateTime<Utc>,
         job_duration: chrono::Duration,
         must_fit: bool,
     ) -> Option<TimeWindow> {
-        None
+        // find the earliest time window that
+        // 1. is within time_windows
+        // and
+        // 2. if must_fit is true fits the complete job_duration
+        //    or if false, fits as much as possible
+        // return None if no such time window exists
+
+        // if no windows, return None
+        if self.windows.is_empty() {
+            return None;
+        }
+        // binary search: find the index of the first window that starts after current_time or contains it
+        // comparing with the end of the windows,
+        let index = match self
+            .windows
+            .binary_search_by(|window| window.end.cmp(&current_time))
+        {
+            // technically, the end of a time window is not part of the time window,
+            // hence, when Ok(index) is returned, the next time window is the one we are looking for (see doc binary_search_by)
+            Ok(index) => index + 1,
+            // if Err is returned, index would be the place where we would insert current time to maintain the order
+            // Hence, time_windows[index - 1].end < current_time < time_windows[index].end
+            // so we return index
+            Err(index) => index,
+        };
+        // if index is the length of the windows, there is no fitting time window anymore
+        if index == self.windows.len() {
+            return None;
+        }
+        match must_fit {
+            false => {
+                // we can use the first time window, just check whether window's duration is larger or job's duration
+                let start = max(self.windows[index].start, current_time);
+                let end = start + min(self.windows[index].duration(), job_duration);
+                return Some(TimeWindow::new(start, end));
+            }
+            true => {
+                // Here, we have to iterate over the remaining time windows until we find on that fits the job duration
+                return self
+                    .windows
+                    .iter()
+                    .skip(index)
+                    .find(|window| window.duration() >= job_duration) // TODO is there a better way to do this? Maybe, there is a leetcode problem for this
+                    .map(|window| {
+                        TimeWindow::new(
+                            max(window.start, current_time),
+                            max(window.start, current_time) + job_duration,
+                        )
+                    });
+            }
+        }
     }
 
     pub fn lateness(&self, time: DateTime<Utc>) -> chrono::Duration {
@@ -132,6 +143,7 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
 
+    // test basic functionality of TimeWindow
     #[test]
     fn test_time_window() {
         let start = Utc.with_ymd_and_hms(2021, 1, 1, 1, 0, 0).unwrap();
@@ -142,26 +154,6 @@ mod tests {
         assert!(time_window.contains(Utc.with_ymd_and_hms(2021, 1, 1, 1, 30, 0).unwrap()));
         assert!(time_window.contains(Utc.with_ymd_and_hms(2021, 1, 1, 2, 0, 0).unwrap()));
         assert!(!time_window.contains(Utc.with_ymd_and_hms(2021, 1, 1, 2, 30, 0).unwrap()));
-        assert_eq!(
-            time_window.waiting_time(Utc.with_ymd_and_hms(2021, 1, 1, 0, 30, 0).unwrap()),
-            chrono::Duration::minutes(30)
-        );
-        assert_eq!(
-            time_window.waiting_time(Utc.with_ymd_and_hms(2021, 1, 1, 1, 0, 0).unwrap()),
-            chrono::Duration::zero()
-        );
-        assert_eq!(
-            time_window.waiting_time(Utc.with_ymd_and_hms(2021, 1, 1, 1, 30, 0).unwrap()),
-            chrono::Duration::zero()
-        );
-        assert_eq!(
-            time_window.waiting_time(Utc.with_ymd_and_hms(2021, 1, 1, 2, 0, 0).unwrap()),
-            chrono::Duration::zero()
-        );
-        assert_eq!(
-            time_window.waiting_time(Utc.with_ymd_and_hms(2021, 1, 1, 2, 30, 0).unwrap()),
-            chrono::Duration::zero()
-        );
         assert_eq!(
             time_window.lateness(Utc.with_ymd_and_hms(2021, 1, 1, 0, 30, 0).unwrap()),
             chrono::Duration::zero()
@@ -191,62 +183,72 @@ mod tests {
         let end1 = Utc.with_ymd_and_hms(2021, 1, 1, 2, 0, 0).unwrap();
         let time_window1 = TimeWindow::new(start1, end1);
         let start2 = Utc.with_ymd_and_hms(2021, 1, 1, 3, 0, 0).unwrap();
-        let end2 = Utc.with_ymd_and_hms(2021, 1, 1, 4, 0, 0).unwrap();
+        let end2 = Utc.with_ymd_and_hms(2021, 1, 1, 5, 0, 0).unwrap();
         let time_window2 = TimeWindow::new(start2, end2);
-        time_windows.add_window(time_window1.clone());
-        time_windows.add_window(time_window2.clone());
+        time_windows.add_window(time_window1);
+        time_windows.add_window(time_window2);
         assert_eq!(time_windows.len(), 2);
-        assert_eq!(
-            time_windows
-                .next_window(Utc.with_ymd_and_hms(2021, 1, 1, 0, 30, 0).unwrap())
-                .unwrap(),
-            (&time_window1, chrono::Duration::minutes(30))
+
+        let result = time_windows.find_next_fitting_time(
+            Utc.with_ymd_and_hms(2021, 1, 1, 0, 0, 0).unwrap(),
+            chrono::Duration::hours(1),
+            true,
         );
         assert_eq!(
-            time_windows
-                .next_window(Utc.with_ymd_and_hms(2021, 1, 1, 1, 0, 0).unwrap())
-                .unwrap(),
-            (&time_window1, chrono::Duration::zero())
+            result,
+            Some(TimeWindow::new(
+                Utc.with_ymd_and_hms(2021, 1, 1, 1, 0, 0).unwrap(),
+                Utc.with_ymd_and_hms(2021, 1, 1, 2, 0, 0).unwrap()
+            ))
+        );
+        let result = time_windows.find_next_fitting_time(
+            Utc.with_ymd_and_hms(2021, 1, 1, 0, 0, 0).unwrap(),
+            chrono::Duration::hours(2),
+            true,
         );
         assert_eq!(
-            time_windows
-                .next_window(Utc.with_ymd_and_hms(2021, 1, 1, 1, 30, 0).unwrap())
-                .unwrap(),
-            (&time_window1, chrono::Duration::zero())
+            result,
+            Some(TimeWindow::new(
+                Utc.with_ymd_and_hms(2021, 1, 1, 3, 0, 0).unwrap(),
+                Utc.with_ymd_and_hms(2021, 1, 1, 5, 0, 0).unwrap()
+            ))
+        );
+        let result = time_windows.find_next_fitting_time(
+            Utc.with_ymd_and_hms(2021, 1, 1, 0, 0, 0).unwrap(),
+            chrono::Duration::hours(3),
+            true,
+        );
+        assert_eq!(result, None);
+
+        let result = time_windows.find_next_fitting_time(
+            Utc.with_ymd_and_hms(2021, 1, 1, 0, 0, 0).unwrap(),
+            chrono::Duration::hours(2),
+            false,
         );
         assert_eq!(
-            time_windows
-                .next_window(Utc.with_ymd_and_hms(2021, 1, 1, 2, 0, 0).unwrap())
-                .unwrap(),
-            (&time_window1, chrono::Duration::zero())
+            result,
+            Some(TimeWindow::new(
+                Utc.with_ymd_and_hms(2021, 1, 1, 1, 0, 0).unwrap(),
+                Utc.with_ymd_and_hms(2021, 1, 1, 2, 0, 0).unwrap()
+            ))
+        );
+        let result = time_windows.find_next_fitting_time(
+            Utc.with_ymd_and_hms(2021, 1, 1, 2, 0, 0).unwrap(),
+            chrono::Duration::hours(3),
+            false,
         );
         assert_eq!(
-            time_windows
-                .next_window(Utc.with_ymd_and_hms(2021, 1, 1, 2, 30, 0).unwrap())
-                .unwrap(),
-            (&time_window2, chrono::Duration::minutes(30))
+            result,
+            Some(TimeWindow::new(
+                Utc.with_ymd_and_hms(2021, 1, 1, 3, 0, 0).unwrap(),
+                Utc.with_ymd_and_hms(2021, 1, 1, 5, 0, 0).unwrap()
+            ))
         );
-        assert_eq!(
-            time_windows
-                .next_window(Utc.with_ymd_and_hms(2021, 1, 1, 3, 0, 0).unwrap())
-                .unwrap(),
-            (&time_window2, chrono::Duration::zero())
+        let result = time_windows.find_next_fitting_time(
+            Utc.with_ymd_and_hms(2021, 1, 2, 0, 0, 0).unwrap(),
+            chrono::Duration::hours(3),
+            false,
         );
-        assert_eq!(
-            time_windows
-                .next_window(Utc.with_ymd_and_hms(2021, 1, 1, 3, 30, 0).unwrap())
-                .unwrap(),
-            (&time_window2, chrono::Duration::zero())
-        );
-        assert_eq!(
-            time_windows
-                .next_window(Utc.with_ymd_and_hms(2021, 1, 1, 4, 0, 0).unwrap())
-                .unwrap(),
-            (&time_window2, chrono::Duration::zero())
-        );
-        assert_eq!(
-            time_windows.next_window(Utc.with_ymd_and_hms(2021, 1, 1, 4, 30, 0).unwrap()),
-            None
-        );
+        assert_eq!(result, None);
     }
 }

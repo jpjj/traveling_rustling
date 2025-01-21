@@ -1,4 +1,7 @@
-use crate::{penalties::time::time_output::TimeOutput, route::Route};
+use crate::{
+    penalties::time::time_output::{Complete, TimeOutput},
+    route::Route,
+};
 
 pub struct Output {
     pub solution: Solution,

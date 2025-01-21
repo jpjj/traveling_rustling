@@ -2,7 +2,10 @@ use crate::{
     output::Solution,
     penalties::{
         distance::DistancePenalizer,
-        time::{time_input::TimeInput, time_output::TimeOutput, TimePenalizer},
+        time::{
+            time_output::{Complete, TimeOutput},
+            TimePenalizer,
+        },
     },
     route::Route,
 };
@@ -39,6 +42,12 @@ impl Penalizer {
             Some(_) => {
                 let time_report1 = sol1.time_report.as_ref().unwrap();
                 let time_report2 = sol2.time_report.as_ref().unwrap();
+                if time_report1.job_splits < time_report2.job_splits {
+                    return true;
+                }
+                if time_report1.job_splits > time_report2.job_splits {
+                    return false;
+                }
                 if time_report1.lateness < time_report2.lateness {
                     return true;
                 }
@@ -79,13 +88,12 @@ impl Penalizer {
 #[cfg(test)]
 mod tests {
 
-    use core::time;
-
     use super::*;
     use crate::penalties::{
-        distance::{self, DistanceMatrix},
+        distance::DistanceMatrix,
         time::{
             operation_times::OperationTimes,
+            time_input::TimeInput,
             time_output::Event,
             time_windows::{TimeWindow, TimeWindows},
         },
@@ -168,14 +176,14 @@ mod tests {
         );
         assert_eq!(
             time_report.end_time,
-            Utc.with_ymd_and_hms(2021, 1, 3, 11, 0, 0).unwrap()
+            Utc.with_ymd_and_hms(2021, 1, 3, 13, 0, 0).unwrap()
         );
-        assert_eq!(time_report.duration, chrono::Duration::hours(53));
-        assert_eq!(time_report.waiting_time, chrono::Duration::hours(38));
+        assert_eq!(time_report.duration, chrono::Duration::hours(55));
+        assert_eq!(time_report.waiting_time, chrono::Duration::hours(40));
         assert_eq!(time_report.working_time, chrono::Duration::hours(9));
         assert_eq!(time_report.traveling_time, chrono::Duration::hours(6));
-        assert_eq!(time_report.lateness, chrono::Duration::hours(21));
-        assert_eq!(time_report.schedule.len(), 10);
+        assert_eq!(time_report.lateness, chrono::Duration::hours(23));
+        assert_eq!(time_report.schedule.len(), 9);
         assert_eq!(
             time_report.schedule[0],
             Event::Wait(TimeWindow::new(
@@ -226,36 +234,26 @@ mod tests {
         );
         assert_eq!(
             time_report.schedule[6],
-            Event::Work(
-                TimeWindow::new(
-                    Utc.with_ymd_and_hms(2021, 1, 2, 14, 0, 0).unwrap(),
-                    Utc.with_ymd_and_hms(2021, 1, 2, 16, 0, 0).unwrap(),
-                ),
-                2
-            )
-        );
-        assert_eq!(
-            time_report.schedule[7],
             Event::Wait(TimeWindow::new(
-                Utc.with_ymd_and_hms(2021, 1, 2, 16, 0, 0).unwrap(),
+                Utc.with_ymd_and_hms(2021, 1, 2, 14, 0, 0).unwrap(),
                 Utc.with_ymd_and_hms(2021, 1, 3, 8, 0, 0).unwrap(),
             ))
         );
         assert_eq!(
-            time_report.schedule[8],
+            time_report.schedule[7],
             Event::Work(
                 TimeWindow::new(
                     Utc.with_ymd_and_hms(2021, 1, 3, 8, 0, 0).unwrap(),
-                    Utc.with_ymd_and_hms(2021, 1, 3, 9, 0, 0).unwrap(),
+                    Utc.with_ymd_and_hms(2021, 1, 3, 11, 0, 0).unwrap(),
                 ),
-                2
+                2,
             )
         );
         assert_eq!(
-            time_report.schedule[9],
+            time_report.schedule[8],
             Event::Travel(TimeWindow::new(
-                Utc.with_ymd_and_hms(2021, 1, 3, 9, 0, 0).unwrap(),
                 Utc.with_ymd_and_hms(2021, 1, 3, 11, 0, 0).unwrap(),
+                Utc.with_ymd_and_hms(2021, 1, 3, 13, 0, 0).unwrap(),
             ))
         );
     }

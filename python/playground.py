@@ -4,6 +4,8 @@ import pandas as pd
 from geopy import distance
 import traveling_rustling
 
+import json
+
 
 def fetch_distance_matrix(geocoded_data):
     origins = geocoded_data
@@ -78,6 +80,7 @@ distance_matrix = fetch_distance_matrix(
     [location["geocode"] for location in location_list]
 )
 operation_times = (8 * 3600, 20 * 3600)
+time_limit = 1
 tic = tme.time()
 solution = traveling_rustling.solve(
     distance_matrix,
@@ -85,7 +88,10 @@ solution = traveling_rustling.solve(
     working_times,
     time_windows,
     operation_times,
-    1,
+    None,
+    None,
+    None,
+    time_limit,
 )
 toc = tme.time()
 print(f"Time to solve: {toc - tic:.2f} seconds")
@@ -119,3 +125,21 @@ print(f"Total iterations: {solution.iterations}")
 print(
     f"Total time taken to solve: {solution.time_taken_microseconds / 1_000_000:.2f} seconds"
 )
+
+json_dict = {
+    "distance_matrix": distance_matrix,
+    "duration_matrix": distance_matrix,
+    "working_times": working_times,
+    "time_windows": time_windows,
+    "operation_times": operation_times,
+    "time_limit": time_limit,
+    "working_days": None,
+    "travel_duration_until_break": None,
+    "break_duration": None,
+    "init_route": None,
+}
+
+
+# Convert and write JSON object to file
+with open("./data/example_input.json", "w") as outfile:
+    json.dump(json_dict, outfile)
