@@ -68,7 +68,7 @@ impl Penalizer {
         }
     }
 
-    pub fn time(&self, route: &Route, build_schedule: bool) -> Option<TimeOutput> {
+    pub fn time(&self, route: &Route, build_schedule: bool) -> Option<TimeOutput<Complete>> {
         match &self.time_penalizer {
             None => None,
             Some(time_penalizer) => Some(time_penalizer.penalize(&route, build_schedule)),

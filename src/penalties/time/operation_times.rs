@@ -1,3 +1,7 @@
+use chrono::{DateTime, Utc};
+
+use super::time_windows::TimeWindow;
+
 pub struct OperationTimes {
     daily_start: chrono::NaiveTime,
     daily_end: chrono::NaiveTime,
@@ -37,6 +41,14 @@ impl OperationTimes {
         } else {
             chrono::Duration::zero()
         }
+    }
+    pub fn find_next_fitting_time(
+        &self,
+        current_time: DateTime<Utc>,
+        job_duration: chrono::Duration,
+        must_fit: bool,
+    ) -> Option<TimeWindow> {
+        None
     }
 }
 

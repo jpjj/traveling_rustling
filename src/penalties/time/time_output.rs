@@ -1,3 +1,5 @@
+use core::time;
+
 use chrono::{DateTime, Utc};
 
 use super::{
@@ -8,7 +10,7 @@ use super::{
 /// Time report module for outputs and evaluation of the time schedule.
 
 #[derive(Debug, Clone)]
-pub struct TimeOutput {
+pub struct TimeOutput<S: CompletionState> {
     pub start_time: chrono::DateTime<chrono::Utc>,
     pub end_time: chrono::DateTime<chrono::Utc>,
     pub duration: chrono::Duration,
@@ -16,11 +18,19 @@ pub struct TimeOutput {
     pub working_time: chrono::Duration,
     pub waiting_time: chrono::Duration,
     pub traveling_time: chrono::Duration,
+    pub job_splits: u32,
     pub schedule: Vec<Event>,
 }
 
-impl TimeOutput {
-    pub fn new(start_time: chrono::DateTime<chrono::Utc>) -> TimeOutput {
+pub enum Incomplete {}
+pub enum Complete {}
+
+trait CompletionState {}
+impl CompletionState for Incomplete {}
+impl CompletionState for Complete {}
+
+impl TimeOutput<Incomplete> {
+    pub fn new(start_time: chrono::DateTime<chrono::Utc>) -> TimeOutput<Incomplete> {
         TimeOutput {
             start_time,
             end_time: start_time,
@@ -32,15 +42,44 @@ impl TimeOutput {
             schedule: vec![],
         }
     }
-
-    pub fn extend(&mut self, other: TimeOutput) {
-        self.end_time = other.end_time;
-        self.duration += other.duration;
-        self.lateness += other.lateness;
-        self.working_time += other.working_time;
-        self.waiting_time += other.waiting_time;
-        self.traveling_time += other.traveling_time;
-        self.schedule.extend(other.schedule);
+    pub fn add_waiting(&mut self, time_window: TimeWindow, build_schedule: bool) {
+        let duration = time_window.duration();
+        self.waiting_time += duration;
+        self.end_time += duration;
+        self.duration += duration;
+        if build_schedule {
+            self.schedule.push(Event::Wait(time_window));
+        }
+    }
+    pub fn add_traveling(&mut self, time_window: TimeWindow, build_schedule: bool) {
+        let duration = time_window.duration();
+        self.traveling_time += duration;
+        self.end_time += duration;
+        self.duration += duration;
+        if build_schedule {
+            self.schedule.push(Event::Travel(time_window));
+        }
+    }
+    pub fn add_working(&mut self, location: usize, time_window: TimeWindow, build_schedule: bool) {
+        let duration = time_window.duration();
+        self.working_time += duration;
+        self.end_time += duration;
+        self.duration += duration;
+        if build_schedule {
+            self.schedule.push(Event::Work(time_window, location));
+        }
+    }
+    pub fn complete(self) -> TimeOutput<Complete> {
+        TimeOutput {
+            start_time: self.start_time,
+            end_time: self.end_time,
+            duration: self.duration,
+            lateness: self.lateness,
+            working_time: self.working_time,
+            waiting_time: self.waiting_time,
+            traveling_time: self.traveling_time,
+            schedule: self.schedule,
+        }
     }
 }
 

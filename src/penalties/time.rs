@@ -2,34 +2,19 @@ pub mod operation_times;
 pub mod time_input;
 pub mod time_output;
 pub mod time_windows;
-use chrono::Utc;
+use std::cmp::max;
+
+use chrono::{Duration, Utc};
 use time_input::TimeInput;
-use time_output::TimeOutput;
+use time_output::{Complete, Incomplete, TimeOutput};
+use time_windows::TimeWindow;
 
 use crate::route::Route;
-
-struct TentativeTimeOutput {
-    time_output: TimeOutput,
-    current_time: chrono::DateTime<Utc>,
-}
-
-impl TentativeTimeOutput {
-    pub fn new(start_time: chrono::DateTime<Utc>) -> TentativeTimeOutput {
-        TentativeTimeOutput {
-            time_output: TimeOutput::new(start_time),
-            current_time: start_time,
-        }
-    }
-
-    pub fn complete(self) -> TimeOutput {
-        self.time_output
-    }
-}
 
 struct WorkingTimePenalizer<'a> {
     time_input: TimeInput,
     route: &'a Route,
-    tentative_time_output: TentativeTimeOutput,
+    time_output: TimeOutput<Incomplete>,
     build_schedule: bool,
 }
 
@@ -43,31 +28,59 @@ impl<'a> WorkingTimePenalizer<'a> {
         WorkingTimePenalizer {
             time_input,
             route,
-            tentative_time_output: TentativeTimeOutput::new(start_time),
+            time_output: TimeOutput::new(start_time),
             build_schedule,
         }
     }
-    fn finish_schedule(self) -> TimeOutput {
+
+    fn finish_schedule(self) -> TimeOutput<Complete> {
         for (i, _) in self.route.sequence.iter().enumerate() {
-            self.add_job(i);
-            self.add_travel(i);
+            self.execute_job(i);
+            self.execute_travel(i);
         }
 
-        self.tentative_time_output.complete()
+        self.time_output.complete()
+    }
+    fn add_job(&mut self, location: usize, time_window: TimeWindow) {
+        // Add waiting between time_output.current_time and time_window.start
+        // Add waiting time to time_output
+        let waiting_duration = time_window
+            .start
+            .signed_duration_since(self.time_output.end_time);
+        self.add_waiting(waiting_duration);
+        self.time_output.add_job(location, time_window);
+    }
+    fn add_split(&mut self) {
+        self.time_output.add_split();
+    }
+    fn add_travel(&mut self, time_window: TimeWindow) {
+        let waiting_duration = time_window
+            .start
+            .signed_duration_since(self.time_output.end_time);
+        self.add_waiting(waiting_duration);
+        self.time_output
+            .add_travel(time_window, self.build_schedule);
+    }
+    fn add_waiting(&mut self, duration: Duration) {
+        if duration > chrono::Duration::zero() {
+            self.time_output.add_waiting(
+                TimeWindow::new(
+                    self.time_output.end_time,
+                    self.time_output.end_time + duration,
+                ),
+                self.build_schedule,
+            );
+        }
     }
 
-    fn add_job(&self, i: usize) {
+    fn execute_job(&self, i: usize) {
         // We assume that we are at the current location
-        // There are a lot of things to check.
-        // RULE 1: We can't start a job before the opening time
-        // RULE 2: The job has to be finished before the closing time
-        // This means we have to wait until we are before or within a time window
-        // that is big enough to fit the job duration.
         let location = self.route.sequence[i];
         let job_duration = self.time_input.job_durations[location];
         let time_windows = self.time_input.time_windows[location];
-        let current_time = self.tentative_time_output.current_time;
-
+        let operation_times = self.time_input.operation_times.unwrap(); // TODO there should always be operation times here. If we work 24/7, this should be handled in operation times.
+        let mut current_time = self.time_output.current_time;
+        let mut tent_current_time = current_time;
         let mut job_completed = false;
 
         // it follows a while loop that searches for a time when
@@ -88,49 +101,80 @@ impl<'a> WorkingTimePenalizer<'a> {
         // 4. Minimize the makespan
         // 5. Minimize the waiting time
         // our solution is feasible, if there are no splits nor lateness.
-        
+        let mut must_fit = false;
+
         while !job_completed {
             // We first check if we are within a time window
             // that is big enough to fit the job duration
-            let maybe_next_fitting_time_tw = time_windows.find_next_fitting_time(current_time, job_duration);
-            match maybe_next_fitting_time_tw {
-                Some(next_fitting_time_tw) => {
-                    // We have found a fitting time window
-                    // We have to check if the job can be done within the operation times
-                    let maybe_next_fitting_time_op = self.time_input.operation_times.find_next_fitting_time(next_fitting_time_tw.start, job_duration);
-                    match maybe_next_fitting_time_op {
-                        Some(next_fitting_time_op) => {
-                            // We have found a fitting operation time
-                            // If the two fitting times are the same, we can do the job now
-                            if next_fitting_time_tw == next_fitting_time_op {
-                                self.tentative_time_output.time_output.add_job(i, next_fitting_time_op, next_fitting_time_op);
-                                job_completed = true;
-                            } else {
-                                // Otherwise, we have to wait until the next fitting time window
-                                current_time = next_fitting_time_op;
-                                job_completed = false;
-                            }
+            let maybe_next_time_tw =
+                time_windows.find_next_fitting_time(current_time, job_duration, must_fit);
+            let maybe_next_time_op =
+                operation_times.find_next_fitting_time(current_time, job_duration, must_fit);
+            match (maybe_next_time_tw, maybe_next_time_op) {
+                (Some(next_time_tw), Some(next_time_op)) => {
+                    if next_time_tw == next_time_op {
+                        // Tentative time output will take care that there is waiting in between
+                        self.add_job(i, next_time_tw);
+                        job_duration -= next_time_tw.duration();
+                        if job_duration == chrono::Duration::zero() {
+                            job_completed = true;
                         }
-                        None => {
-                            // We have not found a fitting operation time
-                            // This basically means that the job never fits our operation times
-                            // In this case, we set the job to be splitable, but increase the "split penalty" by one.
-                            self.tentative_time_output.time_output.add_waiting(location, next_fitting_time_tw.start);
-                            current_time = next_fitting_time_tw.start;
-                        }
+                        current_time = self.time_output.current_time;
+                    } else {
+                        // Otherwise, we have to wait until the next fitting time window
+                        current_time = max(next_time_op.start, next_time_tw.start);
                     }
                 }
-                None => {
-                    // We have not found a fitting time window
-                    // We have to wait until the next fitting time window
-                    self.tentative_time_output.time_output.add_waiting(location, time_windows.find_next_fitting_time(current_time, 0).unwrap().start);
-                    current_time = time_windows.find_next_fitting_time(current_time, 0).unwrap().start;
+                (None, Some(next_time_op)) => {
+                    // There is no time window left, but for operation times, there is
+                    // add job will thereby create lateness
+                    self.add_job(i, next_time_op);
+                    job_duration -= next_time_op.duration();
+                    if job_duration == chrono::Duration::zero() {
+                        job_completed = true;
+                    }
+                    current_time = self.time_output.current_time;
+                }
+                (_, None) => {
+                    // There is no feasible time window for operation time,
+                    // this can only happen if the job is too long,
+                    // hence we know that the job has to be split
+                    must_fit = false;
+                    self.add_split();
+                    current_time = self.time_output.current_time;
                 }
             }
-        // if None is returned, it means that there is no fitting time window left.
-        // Hence, we might as well do the job now.
+        }
     }
-    fn add_travel(&self, i: usize) {}
+    fn execute_travel(&self, i: usize) {
+        // for add travel, we have to take a look at the travel duration between the current location and the next location
+        // also, we have to consider the working times as well as te breaks we do after a certain amount of travel time
+        let location = self.route.sequence[i - 1];
+        let next_location = self.route.sequence[i];
+        let travel_duration = self.time_input.duration_matrix[location][next_location];
+        let operation_times = self.time_input.operation_times.unwrap(); // TODO there should always be operation times here. If we work 24/7, this should be handled in operation times.
+        let mut current_time = self.time_output.current_time;
+        let mut remaining_travel_duration = travel_duration;
+        // TODO also consider breaks
+        while remaining_travel_duration > chrono::Duration::zero() {
+            let maybe_next_time_op = operation_times.find_next_fitting_time(
+                current_time,
+                remaining_travel_duration,
+                false,
+            );
+            match maybe_next_time_op {
+                Some(next_time_op) => {
+                    self.time_output.add_travel(next_location, next_time_op);
+                    remaining_travel_duration -= next_time_op.duration();
+                    current_time = self.time_output.current_time;
+                }
+                None => {
+                    // This should never happen, panic
+                    panic!("Panic because None was returned by operationtimes.find_nect_fitting_time with must_fit = false");
+                }
+            }
+        }
+    }
 }
 
 pub struct TimePenalizer {
@@ -141,7 +185,7 @@ impl TimePenalizer {
     pub fn new(time_input: TimeInput) -> TimePenalizer {
         TimePenalizer { time_input }
     }
-    pub fn penalize(&self, route: &Route, build_schedule: bool) -> TimeOutput {
+    pub fn penalize(&self, route: &Route, build_schedule: bool) -> TimeOutput<Complete> {
         // Here comes the functionalities of the time penalizer
         // We go through the route one location after the other
         // we fist assume that we are at current location.

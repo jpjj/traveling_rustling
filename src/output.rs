@@ -10,5 +10,5 @@ pub struct Output {
 pub struct Solution {
     pub route: Route,
     pub distance: u64,
-    pub time_report: Option<TimeOutput>,
+    pub time_report: Option<TimeOutput<Complete>>,
 }

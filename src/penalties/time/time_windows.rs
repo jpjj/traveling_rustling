@@ -20,6 +20,10 @@ impl TimeWindow {
         self.start <= time && time <= self.end
     }
 
+    pub fn duration(&self) -> chrono::Duration {
+        self.end.signed_duration_since(self.start)
+    }
+
     pub fn waiting_time(&self, time: DateTime<Utc>) -> chrono::Duration {
         if time < self.start {
             self.start.signed_duration_since(time)
@@ -96,6 +100,15 @@ impl TimeWindows {
                 Some((&self.windows[index], waiting_time))
             }
         }
+    }
+
+    pub fn find_next_fitting_time(
+        &self,
+        current_time: DateTime<Utc>,
+        job_duration: chrono::Duration,
+        must_fit: bool,
+    ) -> Option<TimeWindow> {
+        None
     }
 
     pub fn lateness(&self, time: DateTime<Utc>) -> chrono::Duration {
