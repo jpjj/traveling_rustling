@@ -228,6 +228,7 @@ mod tests {
             operation_times: Some(OperationTimes::new(
                 NaiveTime::from_hms_opt(8, 0, 0).unwrap(),
                 NaiveTime::from_hms_opt(16, 0, 0).unwrap(),
+                None,
             )),
             duration_matrix: vec![
                 vec![
@@ -246,7 +247,6 @@ mod tests {
                     chrono::Duration::hours(0),
                 ],
             ],
-            working_days: None,
             travel_duration_until_break: None,
             break_duration: None,
         });

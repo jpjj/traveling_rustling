@@ -1,20 +1,60 @@
 use std::cmp::min;
 
-use chrono::{Date, DateTime, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, TimeZone, Utc};
 
 use super::time_windows::TimeWindow;
+
+struct WorkingDays {
+    next_day_cache: [chrono::Weekday; 7],
+}
+impl WorkingDays {
+    fn new(working_days: Vec<chrono::Weekday>) -> WorkingDays {
+        let mut days = [false; 7];
+        for day in working_days {
+            days[day.num_days_from_monday() as usize] = true;
+        }
+        let mut next_day_cache = [chrono::Weekday::Mon; 7];
+        for i in 0..7 {
+            for j in 1..7 {
+                let next_day = (i + j) % 7;
+                if days[next_day] {
+                    next_day_cache[i] = chrono::Weekday::try_from(next_day as u8).unwrap();
+                    break;
+                }
+            }
+        }
+        WorkingDays { next_day_cache }
+    }
+    fn next_working_day(&self, date: NaiveDate) -> NaiveDate {
+        let next_day = self.next_day_cache[date.weekday().num_days_from_monday() as usize];
+        let mut days_to_add = (next_day.num_days_from_monday() as i8
+            - date.weekday().num_days_from_monday() as i8)
+            .rem_euclid(7) as i64;
+        if days_to_add == 0 {
+            days_to_add = 7; // because from monday to next monday is 7 days
+        }
+        date + chrono::Duration::days(days_to_add)
+    }
+}
 
 pub struct OperationTimes {
     daily_start: chrono::NaiveTime,
     daily_end: chrono::NaiveTime,
+    working_days: Option<WorkingDays>,
 }
 
 impl OperationTimes {
-    pub fn new(daily_start: chrono::NaiveTime, daily_end: chrono::NaiveTime) -> OperationTimes {
+    pub fn new(
+        daily_start: chrono::NaiveTime,
+        daily_end: chrono::NaiveTime,
+        working_days: Option<Vec<chrono::Weekday>>,
+    ) -> OperationTimes {
         assert!(daily_start < daily_end);
+
         OperationTimes {
             daily_start,
             daily_end,
+            working_days: working_days.map(|wd| WorkingDays::new(wd)),
         }
     }
 
@@ -48,8 +88,12 @@ impl OperationTimes {
     }
 
     pub fn next_day(&self, current_time: DateTime<Utc>) -> NaiveDate {
-        // here is what we will change with the next update
-        current_time.date_naive() + chrono::Duration::days(1)
+        match self.working_days {
+            Some(ref working_days) => {
+                return working_days.next_working_day(current_time.date_naive());
+            }
+            None => { current_time + chrono::Duration::days(1) }.date_naive(),
+        }
     }
 
     pub fn start_next_day(&self, current_time: DateTime<Utc>) -> DateTime<Utc> {
@@ -102,6 +146,7 @@ mod tests {
         let operation_times = OperationTimes::new(
             NaiveTime::from_hms_opt(8, 0, 0).unwrap(),
             NaiveTime::from_hms_opt(16, 0, 0).unwrap(),
+            None,
         );
         assert_eq!(
             operation_times.start(),
@@ -141,6 +186,7 @@ mod tests {
         let operation_times = OperationTimes::new(
             NaiveTime::from_hms_opt(8, 0, 0).unwrap(),
             NaiveTime::from_hms_opt(16, 0, 0).unwrap(),
+            None,
         );
         let job_duration = chrono::TimeDelta::hours(2);
         let current_time = Utc.with_ymd_and_hms(2021, 1, 1, 8, 0, 0).unwrap();
@@ -187,6 +233,7 @@ mod tests {
         let operation_times = OperationTimes::new(
             NaiveTime::from_hms_opt(8, 0, 0).unwrap(),
             NaiveTime::from_hms_opt(16, 0, 0).unwrap(),
+            None,
         );
         let job_duration = chrono::TimeDelta::hours(2);
 

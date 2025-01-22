@@ -9,7 +9,6 @@ pub struct TimeInput {
     pub job_durations: Vec<chrono::Duration>,
     pub time_windows: Vec<TimeWindows>,
     pub operation_times: Option<OperationTimes>,
-    pub working_days: Option<Vec<bool>>,
     pub travel_duration_until_break: Option<u64>,
     pub break_duration: Option<u64>,
 }
@@ -92,6 +91,25 @@ pub fn transform(
                         + chrono::Duration::seconds(start as i64),
                     chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap()
                         + chrono::Duration::seconds(end as i64),
+                    match working_days {
+                        None => None,
+                        Some(days) => Some(
+                            days.iter()
+                                .enumerate()
+                                .filter_map(|(i, &x)| if x { Some(i) } else { None })
+                                .map(|x| match x {
+                                    0 => chrono::Weekday::Mon,
+                                    1 => chrono::Weekday::Tue,
+                                    2 => chrono::Weekday::Wed,
+                                    3 => chrono::Weekday::Thu,
+                                    4 => chrono::Weekday::Fri,
+                                    5 => chrono::Weekday::Sat,
+                                    6 => chrono::Weekday::Sun,
+                                    _ => panic!("Invalid day"),
+                                })
+                                .collect::<Vec<chrono::Weekday>>(),
+                        ),
+                    },
                 ))
             }
         }
@@ -111,7 +129,6 @@ pub fn transform(
                 job_durations,
                 time_windows,
                 operation_times,
-                working_days,
                 travel_duration_until_break,
                 break_duration,
             })
@@ -122,6 +139,8 @@ pub fn transform(
 
 #[cfg(test)]
 mod tests {
+    use chrono::{TimeZone, Utc};
+
     use super::*;
 
     #[test]
@@ -135,7 +154,7 @@ mod tests {
                 vec![(9, 10), (11, 12)],
             ]),
             Some((8, 16)),
-            None,
+            Some(vec![true, true, true, false, false, true, false]),
             None,
             None,
         );
@@ -208,6 +227,41 @@ mod tests {
         assert_eq!(
             operation_times.end(),
             chrono::NaiveTime::from_hms_opt(0, 0, 16).unwrap()
+        );
+        // Working days are Mon, Tue, Wed and Sat
+        // Mon -> Tue
+        assert_eq!(
+            operation_times.next_day(Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap()),
+            chrono::NaiveDate::from_ymd_opt(2024, 1, 2).unwrap()
+        );
+        // Tue -> Wed
+        assert_eq!(
+            operation_times.next_day(Utc.with_ymd_and_hms(2024, 1, 2, 0, 0, 0).unwrap()),
+            chrono::NaiveDate::from_ymd_opt(2024, 1, 3).unwrap()
+        );
+        // Wed -> Sat
+        assert_eq!(
+            operation_times.next_day(Utc.with_ymd_and_hms(2024, 1, 3, 0, 0, 0).unwrap()),
+            chrono::NaiveDate::from_ymd_opt(2024, 1, 6).unwrap()
+        );
+        // Thu -> Sat
+        assert_eq!(
+            operation_times.next_day(Utc.with_ymd_and_hms(2024, 1, 4, 0, 0, 0).unwrap()),
+            chrono::NaiveDate::from_ymd_opt(2024, 1, 6).unwrap()
+        );
+        // Fri -> Sat
+        assert_eq!(
+            operation_times.next_day(Utc.with_ymd_and_hms(2024, 1, 5, 0, 0, 0).unwrap()),
+            chrono::NaiveDate::from_ymd_opt(2024, 1, 6).unwrap()
+        );
+        // Sat -> Mon
+        assert_eq!(
+            operation_times.next_day(Utc.with_ymd_and_hms(2024, 1, 6, 0, 0, 0).unwrap()),
+            chrono::NaiveDate::from_ymd_opt(2024, 1, 8).unwrap()
+        );
+        assert_eq!(
+            operation_times.next_day(Utc.with_ymd_and_hms(2024, 1, 7, 0, 0, 0).unwrap()),
+            chrono::NaiveDate::from_ymd_opt(2024, 1, 8).unwrap()
         );
     }
 }
